@@ -424,6 +424,22 @@
             const [isActive, setIsActive] = useState(false);
             const [isPaused, setIsPaused] = useState(false);
 
+            const handleRoundComplete = useCallback(() => {
+                if (currentRound < quest.rounds) {
+                    setCurrentRound(prev => prev + 1);
+                    setTimeLeft(quest.duration);
+                    setIsActive(false);
+                } else {
+                    const rewards = {
+                        xp: Math.floor(quest.rewards.xp * multiplier),
+                        agi: Math.floor((quest.rewards.agi || 0) * multiplier),
+                        sta: Math.floor((quest.rewards.sta || 0) * multiplier),
+                        str: Math.floor((quest.rewards.str || 0) * multiplier)
+                    };
+                    onComplete(rewards);
+                }
+            }, [currentRound, quest.rounds, quest.duration, quest.rewards, multiplier, onComplete]);
+
             useEffect(() => {
                 if (isActive && !isPaused && timeLeft > 0) {
                     const timer = setInterval(() => {
@@ -438,23 +454,7 @@
                     }, 1000);
                     return () => clearInterval(timer);
                 }
-            }, [isActive, isPaused, timeLeft]);
-
-            const handleRoundComplete = () => {
-                if (currentRound < quest.rounds) {
-                    setCurrentRound(prev => prev + 1);
-                    setTimeLeft(quest.duration);
-                    setIsActive(false);
-                } else {
-                    const rewards = {
-                        xp: Math.floor(quest.rewards.xp * multiplier),
-                        agi: Math.floor((quest.rewards.agi || 0) * multiplier),
-                        sta: Math.floor((quest.rewards.sta || 0) * multiplier),
-                        str: Math.floor((quest.rewards.str || 0) * multiplier)
-                    };
-                    onComplete(rewards);
-                }
-            };
+            }, [isActive, isPaused, timeLeft, handleRoundComplete]);
 
             const formatTime = (seconds) => {
                 const mins = Math.floor(seconds / 60);
@@ -544,7 +544,7 @@
                     };
                     setTimeout(() => onComplete(rewards), 500);
                 }
-            }, [leftCount, rightCount]);
+            }, [leftCount, rightCount, targetLeft, targetRight, quest.rewards, multiplier, onComplete]);
 
             return (
                 <div 
@@ -621,7 +621,7 @@
                     };
                     setTimeout(() => onComplete(rewards), 500);
                 }
-            }, [count]);
+            }, [count, target, quest.rewards, multiplier, onComplete]);
 
             return (
                 <div 

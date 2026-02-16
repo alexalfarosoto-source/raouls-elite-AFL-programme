@@ -163,7 +163,7 @@ const QUEST_BACKGROUNDS = {
 };
 ```
 
-#### 2. Main Menu Background (Around line 245)
+#### 2. Main Menu Background (Around line 242)
 ```javascript
 <div 
     className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -318,7 +318,7 @@ Find Tailwind classes in `index.html` and modify:
 
 ### Changing Rank Names
 
-Edit `RANKS` array (around line 40):
+Edit `RANKS` array (around line 60):
 ```javascript
 { name: 'YOUR-RANK', minXP: 0, color: 'text-gray-400' }
 ```

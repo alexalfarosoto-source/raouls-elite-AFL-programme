@@ -65,8 +65,8 @@ Want your own Sung Jin-Woo images?
 1. Upload images to Imgur
 2. Get direct image URLs
 3. Edit `index.html`:
-   - Find `QUEST_BACKGROUNDS` (line ~300)
-   - Find `backgroundImage:` in QuestSelectScreen (line ~800)
+   - Find `QUEST_BACKGROUNDS` (line ~50)
+   - Find `backgroundImage:` in QuestSelectScreen (line ~242)
    - Replace URLs
 
 ## 📊 Quest Details
