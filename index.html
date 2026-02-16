@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="description" content="Raoul's Elite AFL Programme - Level up your footy skills with daily quests!">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>AFL Training: The Arise System</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+        body {
+            overscroll-behavior-y: contain;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.8); }
+        }
+        .pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .float-animation {
+            animation: float 3s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        // Quest background images - Character themed
+        const QUEST_BACKGROUNDS = {
+            speed: 'https://images.unsplash.com/photo-1528747045269-390fe33c19f2?w=1600&q=80', // Killua - lightning theme
+            kicking: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=1600&q=80', // Gulden - stadium
+            handball: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=1600&q=80', // Luffy - action
+            marks: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1600&q=80', // Curnow - aerial
+            groundballs: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=1600&q=80', // Heeney - ground
+            endurance: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=1600&q=80' // Jin-Woo ARISE
+        };
+
+        // Rank thresholds
+        const RANKS = [
+            { name: 'E-RANK', minXP: 0, color: 'text-gray-400' },
+            { name: 'D-RANK', minXP: 500, color: 'text-green-400' },
+            { name: 'C-RANK', minXP: 1500, color: 'text-blue-400' },
+            { name: 'B-RANK', minXP: 3000, color: 'text-purple-400' },
+            { name: 'A-RANK', minXP: 5000, color: 'text-yellow-400' },
+            { name: 'S-RANK', minXP: 8000, color: 'text-red-400' }
+        ];
+
+        // Quest definitions
+        const QUESTS = {
+            speed: {
+                id: 'speed',
+                name: 'God Speed',
+                icon: '⚡',
+                description: 'Sprint training inspired by Killua',
+                type: 'timed',
+                rounds: 3,
+                duration: 30,
+                rewards: { xp: 150, agi: 2 },
+                unlocked: true
+            },
+            kicking: {
+                id: 'kicking',
+                name: 'Drop Punt Master',
+                icon: '🎯',
+                description: 'Perfect your kicking like Errol Gulden',
+                type: 'dual-counter',
+                targets: { left: 15, right: 15 },
+                rewards: { xp: 150, str: 2, agi: 1 },
+                unlocked: true
+            },
+            handball: {
+                id: 'handball',
+                name: 'Bullet Handballs',
+                icon: '👊',
+                description: 'Rapid handballs like Monkey D. Luffy',
+                type: 'dual-counter',
+                targets: { left: 25, right: 25 },
+                rewards: { xp: 150, agi: 2, sta: 1 },
+                unlocked: true
+            },
+            marks: {
+                id: 'marks',
+                name: 'Sky High Marks',
+                icon: '🦅',
+                description: 'Dominate the air like Charlie Curnow',
+                type: 'counter',
+                target: 20,
+                rewards: { xp: 200, str: 2, agi: 2 },
+                unlocked: false,
+                unlockRequirement: 'Complete 3 quests'
+            },
+            groundballs: {
+                id: 'groundballs',
+                name: 'Danger Field',
+                icon: '⚽',
+                description: 'Ground ball dominance like Isaac Heeney',
+                type: 'dual-counter',
+                targets: { left: 20, right: 20 },
+                rewards: { xp: 180, agi: 2, sta: 1 },
+                unlocked: false,
+                unlockRequirement: 'Complete 3 quests'
+            },
+            endurance: {
+                id: 'endurance',
+                name: 'Endless Stamina',
+                icon: '🏃',
+                description: 'Endurance training with Jin-Woo',
+                type: 'timed',
+                rounds: 1,
+                duration: 300,
+                rewards: { xp: 200, sta: 3, agi: 1 },
+                unlocked: false,
+                unlockRequirement: 'Complete 3 quests'
+            }
+        };
+
+        // Local storage helper
+        const storage = {
+            get: (key, defaultValue) => {
+                try {
+                    const item = localStorage.getItem(key);
+                    return item ? JSON.parse(item) : defaultValue;
+                } catch {
+                    return defaultValue;
+                }
+            },
+            set: (key, value) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (e) {
+                    console.error('Storage error:', e);
+                }
+            }
+        };
+
+        // Main App Component
+        const AFLTrainingApp = () => {
+            const [screen, setScreen] = useState('select');
+            const [selectedQuest, setSelectedQuest] = useState(null);
+            const [stats, setStats] = useState(() => storage.get('afl-stats', {
+                xp: 0,
+                agi: 10,
+                sta: 10,
+                str: 10,
+                questsCompleted: 0
+            }));
+
+            useEffect(() => {
+                storage.set('afl-stats', stats);
+            }, [stats]);
+
+            const getCurrentRank = () => {
+                for (let i = RANKS.length - 1; i >= 0; i--) {
+                    if (stats.xp >= RANKS[i].minXP) return RANKS[i];
+                }
+                return RANKS[0];
+            };
+
+            const addRewards = (rewards) => {
+                setStats(prev => ({
+                    ...prev,
+                    xp: prev.xp + rewards.xp,
+                    agi: prev.agi + (rewards.agi || 0),
+                    sta: prev.sta + (rewards.sta || 0),
+                    str: prev.str + (rewards.str || 0),
+                    questsCompleted: prev.questsCompleted + 1
+                }));
+            };
+
+            const startQuest = (questId) => {
+                setSelectedQuest(questId);
+                setScreen('quest');
+            };
+
+            const completeQuest = (rewards) => {
+                addRewards(rewards);
+                setScreen('complete');
+            };
+
+            const returnToSelect = () => {
+                setSelectedQuest(null);
+                setScreen('select');
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-900 text-white">
+                    {screen === 'select' && (
+                        <QuestSelectScreen
+                            stats={stats}
+                            rank={getCurrentRank()}
+                            onStartQuest={startQuest}
+                        />
+                    )}
+                    {screen === 'quest' && selectedQuest && (
+                        <QuestScreen
+                            quest={QUESTS[selectedQuest]}
+                            onComplete={completeQuest}
+                            onBack={returnToSelect}
+                        />
+                    )}
+                    {screen === 'complete' && (
+                        <QuestCompleteScreen
+                            rank={getCurrentRank()}
+                            stats={stats}
+                            onContinue={returnToSelect}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        // Quest Select Screen with Sung Jin-Woo Background
+        const QuestSelectScreen = ({ stats, rank, onStartQuest }) => {
+            const questArray = Object.values(QUESTS);
+            const unlockedQuests = questArray.filter(q => 
+                q.unlocked || stats.questsCompleted >= 3
+            );
+
+            return (
+                <div className="min-h-screen p-4 relative overflow-hidden">
+                    {/* Sung Jin-Woo Shadow Monarch Background */}
+                    <div 
+                        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                        style={{ 
+                            backgroundImage: "url('https://images.unsplash.com/photo-1618556450994-a6a128ef0d9d?w=1600&q=80')",
+                            filter: 'brightness(0.3)'
+                        }}
+                    />
+                    
+                    {/* Dark gradient overlay for readability */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-900/80 via-purple-900/70 to-slate-900/80" />
+                    
+                    {/* All content must be wrapped in relative z-10 div */}
+                    <div className="relative z-10">
+                        {/* Header */}
+                        <div className="text-center mb-6 float-animation">
+                            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+                                👑 THE ARISE SYSTEM
+                            </h1>
+                            <p className="text-gray-300 text-sm">Raoul's Elite AFL Programme</p>
+                        </div>
+
+                        {/* Stats Card */}
+                        <div className="bg-slate-800/90 backdrop-blur rounded-lg p-4 mb-6 border-2 border-purple-500/30">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <div className={`text-2xl font-bold ${rank.color}`}>{rank.name}</div>
+                                    <div className="text-sm text-gray-400">Level {Math.floor(stats.xp / 100)}</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-2xl font-bold text-yellow-400">{stats.xp} XP</div>
+                                    <div className="text-sm text-gray-400">{stats.questsCompleted} Quests</div>
+                                </div>
+                            </div>
+                            
+                            {/* Stats */}
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-blue-400">{stats.agi}</div>
+                                    <div className="text-xs text-gray-400">⚡ AGI</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-green-400">{stats.sta}</div>
+                                    <div className="text-xs text-gray-400">🏃 STA</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-red-400">{stats.str}</div>
+                                    <div className="text-xs text-gray-400">💪 STR</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Quests */}
+                        <div className="space-y-4">
+                            {questArray.map(quest => {
+                                const isUnlocked = unlockedQuests.includes(quest);
+                                return (
+                                    <button
+                                        key={quest.id}
+                                        onClick={() => isUnlocked && onStartQuest(quest.id)}
+                                        disabled={!isUnlocked}
+                                        className={`w-full p-4 rounded-lg text-left transition-all ${
+                                            isUnlocked
+                                                ? 'bg-gradient-to-r from-purple-600/80 to-blue-600/80 backdrop-blur hover:from-purple-500/90 hover:to-blue-500/90 active:scale-95'
+                                                : 'bg-slate-700/50 backdrop-blur cursor-not-allowed opacity-50'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center space-x-3">
+                                                <span className="text-4xl">{quest.icon}</span>
+                                                <div>
+                                                    <div className="font-bold text-lg">{quest.name}</div>
+                                                    <div className="text-sm text-gray-300">{quest.description}</div>
+                                                    {!isUnlocked && (
+                                                        <div className="text-xs text-yellow-400 mt-1">
+                                                            🔒 {quest.unlockRequirement}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {isUnlocked && (
+                                                <div className="text-2xl">▶️</div>
+                                            )}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="mt-8 text-center text-gray-400 text-sm">
+                            <p>✨ Complete quests to level up ✨</p>
+                            <p className="mt-2">🔓 Unlock advanced quests after completing 3</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Quest Screen
+        const QuestScreen = ({ quest, onComplete, onBack }) => {
+            const [difficulty, setDifficulty] = useState(null);
+
+            if (!difficulty) {
+                return (
+                    <div 
+                        className="min-h-screen p-4 flex items-center justify-center relative overflow-hidden"
+                        style={{
+                            backgroundImage: `url('${QUEST_BACKGROUNDS[quest.id]}')`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                        }}
+                    >
+                        <div className="absolute inset-0 bg-black/60" />
+                        <div className="relative z-10 w-full max-w-md">
+                            <button
+                                onClick={onBack}
+                                className="mb-4 px-4 py-2 bg-slate-700/90 backdrop-blur rounded-lg"
+                            >
+                                ← Back
+                            </button>
+                            
+                            <div className="bg-slate-800/95 backdrop-blur rounded-lg p-6">
+                                <div className="text-center mb-6">
+                                    <div className="text-6xl mb-2">{quest.icon}</div>
+                                    <h2 className="text-2xl font-bold mb-2">{quest.name}</h2>
+                                    <p className="text-gray-400">{quest.description}</p>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={() => setDifficulty('easy')}
+                                        className="w-full p-4 bg-green-600 hover:bg-green-500 rounded-lg font-bold transition-all active:scale-95"
+                                    >
+                                        🟢 EASY (50% rewards)
+                                    </button>
+                                    <button
+                                        onClick={() => setDifficulty('normal')}
+                                        className="w-full p-4 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold transition-all active:scale-95"
+                                    >
+                                        🔵 NORMAL (100% rewards)
+                                    </button>
+                                    <button
+                                        onClick={() => setDifficulty('hard')}
+                                        className="w-full p-4 bg-red-600 hover:bg-red-500 rounded-lg font-bold transition-all active:scale-95"
+                                    >
+                                        🔴 HARD (150% rewards)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <QuestExecution
+                    quest={quest}
+                    difficulty={difficulty}
+                    onComplete={onComplete}
+                    onBack={onBack}
+                />
+            );
+        };
+
+        // Quest Execution
+        const QuestExecution = ({ quest, difficulty, onComplete, onBack }) => {
+            const difficultyMultiplier = difficulty === 'easy' ? 0.5 : difficulty === 'hard' ? 1.5 : 1;
+
+            if (quest.type === 'timed') {
+                return <TimedQuest quest={quest} difficulty={difficulty} multiplier={difficultyMultiplier} onComplete={onComplete} onBack={onBack} />;
+            } else if (quest.type === 'dual-counter') {
+                return <DualCounterQuest quest={quest} difficulty={difficulty} multiplier={difficultyMultiplier} onComplete={onComplete} onBack={onBack} />;
+            } else if (quest.type === 'counter') {
+                return <CounterQuest quest={quest} difficulty={difficulty} multiplier={difficultyMultiplier} onComplete={onComplete} onBack={onBack} />;
+            }
+        };
+
+        // Timed Quest Component
+        const TimedQuest = ({ quest, difficulty, multiplier, onComplete, onBack }) => {
+            const [currentRound, setCurrentRound] = useState(1);
+            const [timeLeft, setTimeLeft] = useState(quest.duration);
+            const [isActive, setIsActive] = useState(false);
+            const [isPaused, setIsPaused] = useState(false);
+
+            const handleRoundComplete = useCallback(() => {
+                if (currentRound < quest.rounds) {
+                    setCurrentRound(prev => prev + 1);
+                    setTimeLeft(quest.duration);
+                    setIsActive(false);
+                } else {
+                    const rewards = {
+                        xp: Math.floor(quest.rewards.xp * multiplier),
+                        agi: Math.floor((quest.rewards.agi || 0) * multiplier),
+                        sta: Math.floor((quest.rewards.sta || 0) * multiplier),
+                        str: Math.floor((quest.rewards.str || 0) * multiplier)
+                    };
+                    onComplete(rewards);
+                }
+            }, [currentRound, quest.rounds, quest.duration, quest.rewards, multiplier, onComplete]);
+
+            useEffect(() => {
+                if (isActive && !isPaused && timeLeft > 0) {
+                    const timer = setInterval(() => {
+                        setTimeLeft(prev => {
+                            if (prev <= 1) {
+                                clearInterval(timer);
+                                handleRoundComplete();
+                                return 0;
+                            }
+                            return prev - 1;
+                        });
+                    }, 1000);
+                    return () => clearInterval(timer);
+                }
+            }, [isActive, isPaused, timeLeft, handleRoundComplete]);
+
+            const formatTime = (seconds) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            return (
+                <div 
+                    className="min-h-screen p-4 flex items-center justify-center relative overflow-hidden"
+                    style={{
+                        backgroundImage: `url('${QUEST_BACKGROUNDS[quest.id]}')`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                    }}
+                >
+                    <div className="absolute inset-0 bg-black/70" />
+                    <div className="relative z-10 w-full max-w-md">
+                        <button
+                            onClick={onBack}
+                            className="mb-4 px-4 py-2 bg-slate-700/90 backdrop-blur rounded-lg"
+                        >
+                            ← Back
+                        </button>
+
+                        <div className="bg-slate-800/95 backdrop-blur rounded-lg p-8 text-center">
+                            <div className="text-6xl mb-4">{quest.icon}</div>
+                            <h2 className="text-2xl font-bold mb-2">{quest.name}</h2>
+                            <div className="text-gray-400 mb-6">
+                                Round {currentRound} / {quest.rounds}
+                            </div>
+
+                            <div className="text-7xl font-bold mb-8 pulse-glow">
+                                {formatTime(timeLeft)}
+                            </div>
+
+                            <div className="space-y-3">
+                                {!isActive && timeLeft === quest.duration && (
+                                    <button
+                                        onClick={() => setIsActive(true)}
+                                        className="w-full py-4 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-xl transition-all active:scale-95"
+                                    >
+                                        START
+                                    </button>
+                                )}
+                                {isActive && (
+                                    <button
+                                        onClick={() => setIsPaused(!isPaused)}
+                                        className="w-full py-4 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-bold text-xl transition-all active:scale-95"
+                                    >
+                                        {isPaused ? 'RESUME' : 'PAUSE'}
+                                    </button>
+                                )}
+                                {timeLeft === 0 && currentRound < quest.rounds && (
+                                    <button
+                                        onClick={() => {
+                                            setCurrentRound(prev => prev + 1);
+                                            setTimeLeft(quest.duration);
+                                            setIsActive(false);
+                                        }}
+                                        className="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-xl transition-all active:scale-95"
+                                    >
+                                        NEXT ROUND
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Dual Counter Quest Component
+        const DualCounterQuest = ({ quest, difficulty, multiplier, onComplete, onBack }) => {
+            const [leftCount, setLeftCount] = useState(0);
+            const [rightCount, setRightCount] = useState(0);
+            const targetLeft = Math.ceil(quest.targets.left * (difficulty === 'easy' ? 0.7 : difficulty === 'hard' ? 1.3 : 1));
+            const targetRight = Math.ceil(quest.targets.right * (difficulty === 'easy' ? 0.7 : difficulty === 'hard' ? 1.3 : 1));
+
+            useEffect(() => {
+                if (leftCount >= targetLeft && rightCount >= targetRight) {
+                    const rewards = {
+                        xp: Math.floor(quest.rewards.xp * multiplier),
+                        agi: Math.floor((quest.rewards.agi || 0) * multiplier),
+                        sta: Math.floor((quest.rewards.sta || 0) * multiplier),
+                        str: Math.floor((quest.rewards.str || 0) * multiplier)
+                    };
+                    setTimeout(() => onComplete(rewards), 500);
+                }
+            }, [leftCount, rightCount, targetLeft, targetRight, quest.rewards, multiplier, onComplete]);
+
+            return (
+                <div 
+                    className="min-h-screen p-4 flex items-center justify-center relative overflow-hidden"
+                    style={{
+                        backgroundImage: `url('${QUEST_BACKGROUNDS[quest.id]}')`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                    }}
+                >
+                    <div className="absolute inset-0 bg-black/70" />
+                    <div className="relative z-10 w-full max-w-md">
+                        <button
+                            onClick={onBack}
+                            className="mb-4 px-4 py-2 bg-slate-700/90 backdrop-blur rounded-lg"
+                        >
+                            ← Back
+                        </button>
+
+                        <div className="bg-slate-800/95 backdrop-blur rounded-lg p-8">
+                            <div className="text-center mb-6">
+                                <div className="text-6xl mb-4">{quest.icon}</div>
+                                <h2 className="text-2xl font-bold">{quest.name}</h2>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div className="text-center">
+                                    <div className="text-4xl font-bold text-blue-400 mb-2">
+                                        {leftCount}/{targetLeft}
+                                    </div>
+                                    <button
+                                        onClick={() => setLeftCount(prev => Math.min(prev + 1, targetLeft))}
+                                        disabled={leftCount >= targetLeft}
+                                        className="w-full py-8 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded-lg font-bold text-xl transition-all active:scale-95"
+                                    >
+                                        LEFT 👈
+                                    </button>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-4xl font-bold text-purple-400 mb-2">
+                                        {rightCount}/{targetRight}
+                                    </div>
+                                    <button
+                                        onClick={() => setRightCount(prev => Math.min(prev + 1, targetRight))}
+                                        disabled={rightCount >= targetRight}
+                                        className="w-full py-8 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 rounded-lg font-bold text-xl transition-all active:scale-95"
+                                    >
+                                        RIGHT 👉
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="text-center text-gray-400 text-sm">
+                                Complete {targetLeft} left and {targetRight} right
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Counter Quest Component
+        const CounterQuest = ({ quest, difficulty, multiplier, onComplete, onBack }) => {
+            const [count, setCount] = useState(0);
+            const target = Math.ceil(quest.target * (difficulty === 'easy' ? 0.7 : difficulty === 'hard' ? 1.3 : 1));
+
+            useEffect(() => {
+                if (count >= target) {
+                    const rewards = {
+                        xp: Math.floor(quest.rewards.xp * multiplier),
+                        agi: Math.floor((quest.rewards.agi || 0) * multiplier),
+                        sta: Math.floor((quest.rewards.sta || 0) * multiplier),
+                        str: Math.floor((quest.rewards.str || 0) * multiplier)
+                    };
+                    setTimeout(() => onComplete(rewards), 500);
+                }
+            }, [count, target, quest.rewards, multiplier, onComplete]);
+
+            return (
+                <div 
+                    className="min-h-screen p-4 flex items-center justify-center relative overflow-hidden"
+                    style={{
+                        backgroundImage: `url('${QUEST_BACKGROUNDS[quest.id]}')`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                    }}
+                >
+                    <div className="absolute inset-0 bg-black/70" />
+                    <div className="relative z-10 w-full max-w-md">
+                        <button
+                            onClick={onBack}
+                            className="mb-4 px-4 py-2 bg-slate-700/90 backdrop-blur rounded-lg"
+                        >
+                            ← Back
+                        </button>
+
+                        <div className="bg-slate-800/95 backdrop-blur rounded-lg p-8 text-center">
+                            <div className="text-6xl mb-4">{quest.icon}</div>
+                            <h2 className="text-2xl font-bold mb-6">{quest.name}</h2>
+
+                            <div className="text-7xl font-bold mb-8 pulse-glow">
+                                {count}/{target}
+                            </div>
+
+                            <button
+                                onClick={() => setCount(prev => Math.min(prev + 1, target))}
+                                disabled={count >= target}
+                                className="w-full py-12 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-bold text-2xl transition-all active:scale-95"
+                            >
+                                TAP TO COUNT
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Quest Complete Screen
+        const QuestCompleteScreen = ({ rank, stats, onContinue }) => {
+            return (
+                <div className="min-h-screen p-4 flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+                    <div className="w-full max-w-md">
+                        <div className="bg-slate-800/95 backdrop-blur rounded-lg p-8 text-center pulse-glow">
+                            <div className="text-6xl mb-4">✨</div>
+                            <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-yellow-400 to-purple-400 bg-clip-text text-transparent">
+                                QUEST COMPLETE!
+                            </h2>
+                            
+                            <div className="mb-6">
+                                <div className={`text-4xl font-bold mb-2 ${rank.color}`}>{rank.name}</div>
+                                <div className="text-2xl text-yellow-400">{stats.xp} XP</div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4 mb-8">
+                                <div className="bg-slate-700/50 rounded-lg p-3">
+                                    <div className="text-2xl font-bold text-blue-400">{stats.agi}</div>
+                                    <div className="text-xs text-gray-400">⚡ AGI</div>
+                                </div>
+                                <div className="bg-slate-700/50 rounded-lg p-3">
+                                    <div className="text-2xl font-bold text-green-400">{stats.sta}</div>
+                                    <div className="text-xs text-gray-400">🏃 STA</div>
+                                </div>
+                                <div className="bg-slate-700/50 rounded-lg p-3">
+                                    <div className="text-2xl font-bold text-red-400">{stats.str}</div>
+                                    <div className="text-xs text-gray-400">💪 STR</div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={onContinue}
+                                className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-bold text-xl transition-all active:scale-95"
+                            >
+                                CONTINUE
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render App
+        ReactDOM.render(<AFLTrainingApp />, document.getElementById('root'));
+    </script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('SW registered'))
+                    .catch(err => console.log('SW failed'));
+            });
+        }
+    </script>
+</body>
+</html>
